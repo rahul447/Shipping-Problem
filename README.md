@@ -1,10 +1,13 @@
-##Shipping Problem
+# Shipping Problem
 
-# App will run on 127.0.0.1:8080
+# Details
 
-# Valid Urls (127.0.0.1:8080/healthcheck, 127.0.0.1:8080/cloud-cover)
-    1. 127.0.0.1:8080/cloud-cover
-    2. 127.0.0.1:8080/healthcheck
+    1.App by default will run on 127.0.0.1:8080 (configurable)
+
+# Valid Urls
+
+    1. 127.0.0.1:8080/cloud-cover   (end point configurable) (output - check console)
+    2. 127.0.0.1:8080/healthcheck   (checks app health)
 
 # Setup
 
