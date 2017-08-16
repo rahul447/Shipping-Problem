@@ -20,17 +20,19 @@ var config = Object.freeze(require("../config/config")),
     app = (0, _express2.default)(),
     urlPrefix = config.urlPrefix;
 
-// Sets the relevant config app-wise
 app.use(_expressDomainMiddleware2.default);
 app.set("port", config.http.port);
 app.set("domain", config.http.domain);
 app.use(_bodyParser2.default.json());
 
+// health Check of Api
 app.get("/healthcheck", function (req, res) {
     res.status(200).send("OKYE");
 });
 
+// main api endpoint
 app.get("" + urlPrefix, function (req, res) {
+
     (0, _index.runCloudTravel)(config).then(function () {
         res.status(200).send("Check Console");
     }).catch(function (err) {
@@ -39,7 +41,6 @@ app.get("" + urlPrefix, function (req, res) {
 });
 
 // Starts the app
-
 app.listen(app.get("port"), app.get("domain"), function () {
     console.log("Server has started and is listening on port: " + app.get("port") + " and ip : " + app.get("domain"));
 });

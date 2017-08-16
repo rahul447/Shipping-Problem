@@ -18,49 +18,71 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 var cloudTravel = exports.cloudTravel = function () {
-    function cloudTravel(latArr, longArr, ValidPorts, start, end) {
+    function cloudTravel(latArr, longArr, canTravelArr, start, dest) {
         _classCallCheck(this, cloudTravel);
 
         this.earthRadius = 4000;
         this.latArr = latArr;
         this.longArr = longArr;
-        this.ValidPorts = ValidPorts;
+        this.canTravelArr = canTravelArr;
         this.start = start;
-        this.end = end;
+        this.dest = dest;
     }
+
+    // returns distance b/w 2 airports as per formula
+
 
     _createClass(cloudTravel, [{
         key: "calcArcLength",
         value: function calcArcLength(lat1, lat2, lon1, lon2) {
+
             return this.earthRadius * Math.acos(Math.sin(lat1) * Math.sin(lat2) + Math.cos(lat1) * Math.cos(lat2) * Math.cos(lon1 - lon2));
         }
+
+        // traverse canTravelMap, calculates Miles Traveled
+
     }, {
-        key: "iterateMap",
-        value: function iterateMap(startpoint, travelPath) {
+        key: "traverseCanTravelMap",
+        value: function traverseCanTravelMap(currentAirport, currTravelPath) {
             var _this = this;
 
-            if (this.validPortsMap.get(startpoint).indexOf(this.end) > -1) {
-                travelPath += "=>" + this.end + ",";
+            // only TRUE when dest airport is found
+            if (this.canTravelMap.get(currentAirport).indexOf(this.dest) > -1) {
+
+                // so for usecase 1 as per doc, currTravelPath = "0=>2,2=>1"
+                currTravelPath += "=>" + this.dest + ",";
+
                 var milesTraveled = 0.0;
-                travelPath.split(",").map(function (tval) {
-                    if (tval) {
-                        milesTraveled += _this.distanceMap.get(tval);
+
+                currTravelPath.split(",").map(function (route) {
+                    if (route) {
+                        milesTraveled += _this.distanceMap.get(route);
                     }
                 });
-                this.milesTraveled = milesTraveled;
+
+                this.milesTraveled = milesTraveled; //total miles traveled for each use case
             } else {
-                this.validPortsMap.get(startpoint).map(function (ival) {
-                    travelPath += "=>" + ival + "," + ival;
-                    _this.iterateMap(ival, travelPath);
+
+                this.canTravelMap.get(currentAirport).map(function (canTravelAirport) {
+                    currTravelPath += "=>" + canTravelAirport + "," + canTravelAirport;
+
+                    // recursion
+                    _this.traverseCanTravelMap(canTravelAirport, currTravelPath);
                 });
             }
         }
+
+        // calculates distance between all routes found in each use case (canTravelMap)
+        // Eg in case of { 0 => [ 2 ], 1 => [ 0, 2 ], 2 => [ 0, 1 ] }
+        // routes will be 0 to 2, 1 to 0, 1 to 2, 2 to 0, 2 to 1
+
     }, {
-        key: "calcTravelDistance",
-        value: function calcTravelDistance() {
+        key: "calcTravelDistanceForAllRoutes",
+        value: function calcTravelDistanceForAllRoutes() {
             var _this2 = this;
 
             var distanceMap = new Map();
+
             var _iteratorNormalCompletion = true;
             var _didIteratorError = false;
             var _iteratorError = undefined;
@@ -71,13 +93,15 @@ var cloudTravel = exports.cloudTravel = function () {
                         key = _step$value[0],
                         value = _step$value[1];
 
-                    var mapkey = key + "=>";
-                    value.map(function (ipts) {
-                        distanceMap.set(mapkey + ipts, _this2.calcArcLength(_this2.latArr[key], _this2.latArr[ipts], _this2.longArr[key], _this2.longArr[ipts]));
+                    value.map(function (canTravelAirport) {
+
+                        var routeDistance = _this2.calcArcLength(_this2.latArr[key], _this2.latArr[canTravelAirport], _this2.longArr[key], _this2.longArr[canTravelAirport]);
+
+                        distanceMap.set(key + "=>" + canTravelAirport, routeDistance);
                     });
                 };
 
-                for (var _iterator = this.validPortsMap[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
+                for (var _iterator = this.canTravelMap[Symbol.iterator](), _step; !(_iteratorNormalCompletion = (_step = _iterator.next()).done); _iteratorNormalCompletion = true) {
                     _loop();
                 }
             } catch (err) {
@@ -97,24 +121,37 @@ var cloudTravel = exports.cloudTravel = function () {
 
             return distanceMap;
         }
+
+        // main method
+
     }, {
-        key: "calcShortestTrip",
-        value: function calcShortestTrip() {
+        key: "shortestCourierTrip",
+        value: function shortestCourierTrip() {
             var _this3 = this;
 
             return new Promise(function (resolve, reject) {
-                _this3.validate().then(function (data) {
 
-                    if (data.validPortsMap.get(_this3.start).length === 1 && data.validPortsMap.get(data.validPortsMap.get(_this3.start)[0]).length === 1 && data.validPortsMap.get(data.validPortsMap.get(_this3.start)[0])[0] === _this3.start) {
-                        resolve(-1);
-                    } else if (_this3.start === _this3.end) {
-                        resolve(0.0);
+                _this3.validateConstraints().then(function (data) {
+
+                    var startArr = data.canTravelMap.get(_this3.start);
+
+                    // check for -1 route not found
+                    // when data.canTravelMap has values like  { 0 => [ 2 ], 2 => [ 0 ] }
+                    if (startArr.length === 1 && data.canTravelMap.get(startArr[0]).length === 1 && data.canTravelMap.get(startArr[0])[0] === _this3.start) {
+
+                        resolve(-1); // route not found
+                    } else if (_this3.start === _this3.dest) {
+                        resolve(0.0); // start airport same as dest airport
                     } else {
-                        _this3.validPortsMap = data.validPortsMap;
-                        _this3.distanceMap = _this3.calcTravelDistance();
-                        var travelPath = _this3.start;
+                        _this3.canTravelMap = data.canTravelMap;
+                        _this3.distanceMap = _this3.calcTravelDistanceForAllRoutes();
 
-                        _this3.iterateMap(_this3.start, travelPath);
+                        var currTravelPath = _this3.start;
+
+                        // as this method is call recursively ,
+                        // 1st param denotes current airport,2nd param denotes current traveled path
+                        _this3.traverseCanTravelMap(_this3.start, currTravelPath);
+
                         resolve(_this3.milesTraveled);
                     }
                 }).catch(function (err) {
@@ -122,28 +159,42 @@ var cloudTravel = exports.cloudTravel = function () {
                 });
             });
         }
+
+        // validate constraints on lat, long, canTravel
+
     }, {
-        key: "validate",
-        value: function validate() {
+        key: "validateConstraints",
+        value: function validateConstraints() {
             var _this4 = this;
 
             return new Promise(function (resolve, reject) {
-                if (!(_this4.latArr.length === _this4.longArr.length || _this4.latArr.length === _this4.ValidPorts.length)) {
-                    reject("cloudTravel.validate()// " + "Length of Lat, Long, ValidPorts not Equal");
-                } else if (_this4.latArr.length > 20 || _this4.longArr.length > 20 || _this4.ValidPorts.length > 20) {
-                    reject("cloudTravel.validate()// " + "Length of Lat or Long or ValidPorts > 20");
+
+                // check constraint 2 as per doc
+                if (!(_this4.latArr.length === _this4.longArr.length || _this4.latArr.length === _this4.canTravelArr.length)) {
+
+                    reject("cloudTravel.validate()// " + "Length of latArr, longArr, canTravelArr not Equal");
+                } else if (_this4.latArr.length > 20 || _this4.longArr.length > 20 || _this4.canTravelArr.length > 20) {
+                    // check constraint 1 as per doc
+
+                    reject("cloudTravel.validate()// " + "Length of latArr or longArr or canTravelArr > 20");
                 } else {
+
                     var latLongMap = new Map(),
-                        validPortsMap = new Map();
+                        canTravelMap = new Map();
 
                     _this4.latArr.map(function (val, key) {
+
+                        // check constraint 3 as per doc
                         if (!_lodash2.default.inRange(val, -89, 90)) {
                             reject("cloudTravel.validate()// " + "Lat val not valid");
                         }
+
                         latLongMap.set(key, { "lat": val });
                     });
 
                     _this4.longArr.map(function (val, key) {
+
+                        // check constraint 4 as per doc
                         if (!_lodash2.default.inRange(val, -179, 180)) {
                             reject("cloudTravel.validate()// " + "Long val not valid");
                         }
@@ -159,6 +210,7 @@ var cloudTravel = exports.cloudTravel = function () {
                                 var _step2$value = _slicedToArray(_step2.value, 2),
                                     value = _step2$value[1];
 
+                                // check constraint 8 as per doc
                                 if (modObj.lat === value.lat && val === value.long) {
                                     reject("cloudTravel.validate()// " + "Same Lat long not allowed for two airports");
                                 }
@@ -181,26 +233,29 @@ var cloudTravel = exports.cloudTravel = function () {
                         modObj.long = val;
                     });
 
-                    _this4.ValidPorts.map(function (val, key) {
-                        var validPortArr = [];
+                    _this4.canTravelArr.map(function (val, key) {
 
-                        val.split("|").map(function (innerval) {
+                        var airPortArr = [];
+
+                        val.split(" ").map(function (innerval) {
+
+                            // check constraint 6 as per doc
                             if (!_lodash2.default.inRange(parseInt(innerval), 0, _this4.latArr.length)) {
-                                reject("cloudTravel.validate()// " + "validPort val not valid");
+                                reject("cloudTravel.validate()// " + "canTravelArr val not valid");
                             }
-                            validPortArr.push(parseInt(innerval));
+
+                            airPortArr.push(parseInt(innerval));
                         });
-                        validPortsMap.set(key, validPortArr);
+
+                        canTravelMap.set(key, airPortArr);
                     });
 
-                    if (!_lodash2.default.inRange(_this4.start, 0, _this4.latArr.length)) {
-                        reject("cloudTravel.validate()// " + "start val not valid");
+                    // check constraint 7 as per doc
+                    if (!(_lodash2.default.inRange(_this4.start, 0, _this4.latArr.length) || _lodash2.default.inRange(_this4.dest, 0, _this4.latArr.length))) {
+                        reject("cloudTravel.validate()// " + "start or dest val not valid");
                     }
 
-                    if (!_lodash2.default.inRange(_this4.end, 0, _this4.latArr.length)) {
-                        reject("cloudTravel.validate()// " + "end val not valid");
-                    }
-                    resolve({ latLongMap: latLongMap, validPortsMap: validPortsMap });
+                    resolve({ latLongMap: latLongMap, canTravelMap: canTravelMap });
                 }
             });
         }
